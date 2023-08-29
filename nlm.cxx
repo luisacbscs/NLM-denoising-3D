@@ -29,6 +29,9 @@ int main(int argc, char **argv) {
 		cout << "Introduce file path: ";
 		cin >> inputFilename;
 
+		cout << "Introduce output file path: ";
+		cin >> outputFilename;
+
 		char define;
 		cout << "Define NLM denoising parameters? (Y/N)? ";
 		cin >> define;
@@ -46,6 +49,16 @@ int main(int argc, char **argv) {
 	} else if (argc == 6) {
 		
 		inputFilename = argv[1];
+
+		// OUTPUT FILENAME
+		string suffix = ".nii";
+		stringstream hss, kernelSizess, neighbSizess;
+		hss << h;
+		kernelSizess << kernelSize;
+		neighbSizess << 2 * neighbRadius + 1;
+		string newSuffix = "_" + hss.str() + "_" + kernelSizess.str() + "_" + neighbSizess.str() + ".nii";
+		outputFilename = inputFilename.replace(inputFilename.find(suffix), suffix.length(), newSuffix);
+
 		sigma = atof(argv[2]);
 		h = atof(argv[3]);		
 		kernelSize = atoi(argv[4]);
@@ -265,14 +278,6 @@ int main(int argc, char **argv) {
 	using WriterType = itk::ImageFileWriter<ImageType>;
 	auto writer = WriterType::New();
 
-	// OUTPUT FILENAME
-	string suffix = ".nii";
-	stringstream hss, kernelSizess, neighbSizess;
-	hss << h;
-	kernelSizess << kernelSize;
-	neighbSizess << neighbSize;
-	string newSuffix = "_" + hss.str() + "_" + kernelSizess.str() + "_" + neighbSizess.str() + ".nii";
-	outputFilename = inputFilename.replace(inputFilename.find(suffix), suffix.length(), newSuffix);
 	writer->SetFileName(outputFilename.c_str());
 	writer->SetInput(image);
 
