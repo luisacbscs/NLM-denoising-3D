@@ -5,7 +5,7 @@
 #include <string>
 #include <regex>
 #include <math.h>
-#include <omp.h>
+#include <omp.h>	// Configuration Properties > C/C++ > Language > Open MP Support: Yes (/openmp)
 
 using namespace std;
 using namespace itk;
@@ -46,9 +46,13 @@ int main(int argc, char **argv) {
 			cin >> neighbRadius;
 		}
 
-	} else if (argc == 6) {
+	} else if (argc == 6) { //"C:\\Users\\luisa\\Documents\\V_FDG_002_PET_10s.nii" "0.000190092" "0.5" "3" "3"
 		
 		inputFilename = argv[1];
+		sigma = atof(argv[2]);
+		h = atof(argv[3]);		
+		kernelSize = atoi(argv[4]);
+		neighbRadius = atoi(argv[5]);
 
 		// OUTPUT FILENAME
 		string suffix = ".nii";
@@ -57,12 +61,8 @@ int main(int argc, char **argv) {
 		kernelSizess << kernelSize;
 		neighbSizess << 2 * neighbRadius + 1;
 		string newSuffix = "_" + hss.str() + "_" + kernelSizess.str() + "_" + neighbSizess.str() + ".nii";
-		outputFilename = inputFilename.replace(inputFilename.find(suffix), suffix.length(), newSuffix);
-
-		sigma = atof(argv[2]);
-		h = atof(argv[3]);		
-		kernelSize = atoi(argv[4]);
-		neighbRadius = atoi(argv[5]);
+		outputFilename = inputFilename;
+		outputFilename = outputFilename.replace(inputFilename.find(suffix), suffix.length(), newSuffix);
 
 	}
 	else if (argc == 7) {
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
 	}
 	else {
 		cout << "Insufficient parameters for NLM denoising. Please introduce:"
-			<< "\n - File path + file name\n - Output file path + file name (optional)\n - Noise standard deviation estimate\n "
+			<< "\n - File path + file name\n - Output file path + file name (optional)\n - Noise standard deviation estimate\n"
 			<< " - Decay factor h\n - Kernel size\n - Neighbourhood radius (maximum distance from center)\n";
 		return EXIT_FAILURE;
 	}
@@ -97,13 +97,25 @@ int main(int argc, char **argv) {
 	// READER OBJECT
 	ReaderType::Pointer reader = ReaderType::New();
 	//reader->SetFileName(argv[1]);
+	//cout << inputFilename.c_str() << endl;
 	reader->SetFileName(inputFilename.c_str());
-	reader->Update();
+
+	try
+	{
+		reader->Update();
+	}
+	catch (const itk::ExceptionObject& error)
+	{
+		std::cerr << "Error: " << error << std::endl;
+		return EXIT_FAILURE;
+	}
+	
 
 	// IMAGE OBJECT
 	ImageType::Pointer image = reader->GetOutput();
 	ImageType::SizeType size = image->GetLargestPossibleRegion().GetSize();
 
+	cout << "Input file: " << inputFilename.c_str() << endl;
 	cout << "Image size: " << size << "\n";
 	
 	cout << "NLM parameters:\n - Noise standard deviation: " << sigma << "\n - h = " << h << "\n - Kernel Size: " << kernelSize << "x" 
@@ -115,7 +127,7 @@ int main(int argc, char **argv) {
 	int frameEndy = size[1] - neighbRadius;
 	int frameEndz = size[2] - neighbRadius;
 	// Using OpenMP to parallelize the iteration
-	#pragma omp parallel for
+	#pragma omp parallel for 
 	for (int i = frameStart; i < frameEndx; ++i) {
 		for (int j = frameStart; j < frameEndy; ++j) {
 			for (int k = frameStart; k < frameEndz; ++k) {
@@ -278,6 +290,7 @@ int main(int argc, char **argv) {
 	using WriterType = itk::ImageFileWriter<ImageType>;
 	auto writer = WriterType::New();
 
+	cout << "Output file: " << outputFilename.c_str() << endl;
 	writer->SetFileName(outputFilename.c_str());
 	writer->SetInput(image);
 
