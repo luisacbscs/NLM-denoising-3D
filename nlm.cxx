@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 			cin >> neighbRadius;
 		}
 
-	} else if (argc == 6) { //"C:\\Users\\luisa\\Documents\\V_FDG_002_PET_10s.nii" "0.000190092" "0.5" "3" "3"
+	} else if (argc == 6) {
 		
 		inputFilename = argv[1];
 		sigma = atof(argv[2]);
