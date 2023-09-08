@@ -26,23 +26,23 @@ int main(int argc, char **argv) {
 
 	if (argc == 1) {
 
-		cout << "Introduce file path: ";
+		std::cout << "Introduce file path: ";
 		cin >> inputFilename;
 
-		cout << "Introduce output file path: ";
+		std::cout << "Introduce output file path: ";
 		cin >> outputFilename;
 
 		char define;
-		cout << "Define NLM denoising parameters? (Y/N)? ";
+		std::cout << "Define NLM denoising parameters? (Y/N)? ";
 		cin >> define;
 		if (define == 'Y') {
-			cout << "Introduce noise standard deviation estimate: ";
+			std::cout << "Introduce noise standard deviation estimate: ";
 			cin >> sigma;
-			cout << "Introduce decay factor h: ";
+			std::cout << "Introduce decay factor h: ";
 			cin >> h;
-			cout << "Introduce kernel size: ";
+			std::cout << "Introduce kernel size: ";
 			cin >> kernelSize;
-			cout << "Introduce max distance for denoising (denoising radius in vx): ";
+			std::cout << "Introduce max distance for denoising (denoising radius in vx): ";
 			cin >> neighbRadius;
 		}
 
@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
 		neighbRadius = atoi(argv[6]);
 	}
 	else {
-		cout << "Insufficient parameters for NLM denoising. Please introduce:"
+		std::cout << "Insufficient parameters for NLM denoising. Please introduce:"
 			<< "\n - File path + file name\n - Output file path + file name (optional)\n - Noise standard deviation estimate\n"
 			<< " - Decay factor h\n - Kernel size\n - Neighbourhood radius (maximum distance from center)\n";
 		return EXIT_FAILURE;
@@ -115,27 +115,55 @@ int main(int argc, char **argv) {
 	ImageType::Pointer image = reader->GetOutput();
 	ImageType::SizeType size = image->GetLargestPossibleRegion().GetSize();
 
-	cout << "Input file: " << inputFilename.c_str() << endl;
-	cout << "Image size: " << size << "\n";
+	std::cout << "Input file: " << inputFilename.c_str() << endl;
+	std::cout << "Image size: " << size << "\n";
 	
-	cout << "NLM parameters:\n - Noise standard deviation: " << sigma << "\n - h = " << h << "\n - Kernel Size: " << kernelSize << "x" 
+	std::cout << "NLM parameters:\n - Noise standard deviation: " << sigma << "\n - h = " << h << "\n - Kernel Size: " << kernelSize << "x"
 		<< kernelSize << "x" << kernelSize << "\n - Neighbourhood size: " << neighbSize << "x" << neighbSize << "x" << neighbSize << endl;
 
 	// ITERATE OVER THE IMAGE
-	int frameStart = neighbRadius;
-	int frameEndx = size[0] - neighbRadius;
-	int frameEndy = size[1] - neighbRadius;
-	int frameEndz = size[2] - neighbRadius;
+	int frameStart = kernelStep;
+	int frameEndx = size[0] - kernelStep;
+	int frameEndy = size[1] - kernelStep;
+	int frameEndz = size[2] - kernelStep;
 	// Using OpenMP to parallelize the iteration
 	#pragma omp parallel for 
-	for (int i = frameStart; i < frameEndx; ++i) {
-		for (int j = frameStart; j < frameEndy; ++j) {
-			for (int k = frameStart; k < frameEndz; ++k) {
+	for (int i = 0; i < size[0]; ++i) {
+		for (int j = 0; j < size[1]; ++j) {
+			for (int k = 0; k < size[2]; ++k) {
 
 				ImageType::IndexType index;	// index must be created inside the loop for the parallelization to be possible
-				index[0] = i;
-				index[1] = j;
-				index[2] = k;
+
+				// DEALING WITH BORDERS: REFLECT STRATEGY
+				if (i < 0) {
+					index[0] = abs(i) - 1;
+				}
+				else if (i > (size[0] - 1)) {
+					index[0] = size[0] - (i - (size[0] - 1));
+				}
+				else {
+					index[0] = i;
+				}
+
+				if (j < 0) {
+					index[1] = abs(j) - 1;
+				}
+				else if (j > (size[1] - 1)) {
+					index[1] = size[1] - (j - (size[1] - 1));
+				}
+				else {
+					index[1] = j;
+				}
+
+				if (k < 0) {
+					index[2] = abs(k) - 1;
+				}
+				else if (k > (size[2] - 1)) {
+					index[2] = size[2] - (k - (size[2] - 1));
+				}
+				else {
+					index[2] = k;
+				}
 
 				// STORE THE VALUES OF THE CENTER KERNEL IN AN ARRAY
 				float* centerKernel = new float[kernelSize * kernelSize * kernelSize];
@@ -144,15 +172,47 @@ int main(int argc, char **argv) {
 				int centerCounter = 0;
 
 				// ITERATE OVER THE CENTER KERNEL
-				ImageType::IndexType cind;
-				for (cind[0] = index[0] - kernelStep; cind[0] <= index[0] + kernelStep; ++cind[0]) {
-					for (cind[1] = index[1] - kernelStep; cind[1] <= index[1] + kernelStep; ++cind[1]) {
-						for (cind[2] = index[2] - kernelStep; cind[2] <= index[2] + kernelStep; ++cind[2]) {
+				for (int ci = i - kernelStep; ci <= i + kernelStep; ++ci) {
+					for (int cj = j - kernelStep; cj <= j + kernelStep; ++cj) {
+						for (int ck = k - kernelStep; ck <= k + kernelStep; ++ck) {
+
+							ImageType::IndexType cind;
+
+							// DEALING WITH BORDERS: REFLECT STRATEGY
+							if (ci < 0) {
+								cind[0] = abs(ci) - 1;
+							}
+							else if (ci > (size[0] - 1)) {
+								cind[0] = size[0] - (ci - (size[0] - 1));
+							}
+							else {
+								cind[0] = ci;
+							}
+
+							if (cj < 0) {
+								cind[1] = abs(cj) - 1;
+							}
+							else if (cj > (size[1] - 1)) {
+								cind[1] = size[1] - (cj - (size[1] - 1));
+							}
+							else {
+								cind[1] = cj;
+							}
+
+							if (ck < 0) {
+								cind[2] = abs(ck) - 1;
+							}
+							else if (ck > (size[2] - 1)) {
+								cind[2] = size[2] - (ck - (size[2] - 1));
+							}
+							else {
+								cind[2] = ck;
+							}
 
 							centerCounter++;
 							centerSum = centerSum + (float)image->GetPixel(cind);
-							centerKernel[(cind[0] - index[0] + kernelStep) * kernelSize * kernelSize +
-								(cind[1] - index[1] + kernelStep) * kernelSize + (cind[2] - index[2] + kernelStep)]
+							centerKernel[(ci - i + kernelStep) * kernelSize * kernelSize +
+								(cj - j + kernelStep) * kernelSize + (ck - k + kernelStep)]
 								= (float)image->GetPixel(cind);
 							// The memory position for a given index (i, j, k) of a 3D array of size M*N*D will be given by:
 							// i * N * N + j * D + k. Thus, to acess the respective value: Arr[i * N * N + j * D + k].
@@ -174,14 +234,43 @@ int main(int argc, char **argv) {
 				float pxValue = 0.0;
 				int pxCounter = 0;
 
-				// ITERATE OVER THE NEIGHBOURHOOD
-				ImageType::IndexType indexNeighb;
-				for (indexNeighb[0] = index[0] - neighbRadius + kernelStep; indexNeighb[0] <= index[0] + neighbRadius - kernelStep;
-					++indexNeighb[0]) {
-					for (indexNeighb[1] = index[1] - neighbRadius + kernelStep; indexNeighb[1] <= index[1] + neighbRadius - kernelStep;
-						++indexNeighb[1]) {
-						for (indexNeighb[2] = index[2] - neighbRadius + kernelStep; indexNeighb[2] <= index[2] + neighbRadius - kernelStep;
-							++indexNeighb[2]) {
+				// ITERATE OVER THE NEIGHBOURHOOD	
+				for (int ii = index[0] - neighbRadius + kernelStep; ii <= index[0] + neighbRadius - kernelStep; ++ii) {
+					for (int jj = index[1] - neighbRadius + kernelStep; jj <= index[1] + neighbRadius - kernelStep; ++jj) {
+						for (int kk = index[2] - neighbRadius + kernelStep; kk <= index[2] + neighbRadius - kernelStep; ++kk) {
+
+							ImageType::IndexType indexNeighb;
+
+							// DEALING WITH BORDERS: REFLECT STRATEGY
+							if (ii < 0) {
+								indexNeighb[0] = abs(ii) - 1;
+							}
+							else if (ii > (size[0] - 1)) {
+								indexNeighb[0] = size[0] - (ii - (size[0] - 1));
+							}
+							else {
+								indexNeighb[0] = ii;
+							}
+
+							if (jj < 0) {
+								indexNeighb[1] = abs(jj) - 1;
+							}
+							else if (jj > (size[1] - 1)) {
+								indexNeighb[1] = size[1] - (jj - (size[1] - 1));
+							}
+							else {
+								indexNeighb[1] = jj;
+							}
+
+							if (kk < 0) {
+								indexNeighb[2] = abs(kk) - 1;
+							}
+							else if (kk > (size[2] - 1)) {
+								indexNeighb[2] = size[2] - (kk - (size[2] - 1));
+							}
+							else {
+								indexNeighb[2] = kk;
+							}
 
 							// STORE THE VALUES OF EACH OF THE NEIGHBOURHOOD'S KERNELS IN AN ARRAY
 							float* neighbKernel = new float[kernelSize * kernelSize * kernelSize];
@@ -189,16 +278,56 @@ int main(int argc, char **argv) {
 							float kernelSum = 0.0;
 							int counter = 0;
 							// ITERATE OVER THE KERNEL
-							ImageType::IndexType indexaux;
-							for (indexaux[0] = indexNeighb[0] - kernelStep; indexaux[0] <= indexNeighb[0] + kernelStep; ++indexaux[0]) {
-								for (indexaux[1] = indexNeighb[1] - kernelStep; indexaux[1] <= indexNeighb[1] + kernelStep; ++indexaux[1]) {
-									for (indexaux[2] = indexNeighb[2] - kernelStep; indexaux[2] <= indexNeighb[2] + kernelStep; ++indexaux[2]) {
+							//ImageType::IndexType indexaux;
+							//for (indexaux[0] = indexNeighb[0] - kernelStep; indexaux[0] <= indexNeighb[0] + kernelStep; ++indexaux[0]) {				
+								//for (indexaux[1] = indexNeighb[1] - kernelStep; indexaux[1] <= indexNeighb[1] + kernelStep; ++indexaux[1]) {
+									//for (indexaux[2] = indexNeighb[2] - kernelStep; indexaux[2] <= indexNeighb[2] + kernelStep; ++indexaux[2]) {
+							
+							for (int iii = ii - kernelStep; iii <= ii + kernelStep; ++iii) {
+								for (int jjj = jj - kernelStep; jjj <= jj + kernelStep; ++jjj) {
+									for (int kkk = kk - kernelStep; kkk <= kk + kernelStep; ++kkk) {
+										//cout << indexaux[0] << ", " << indexaux[1] << ", " << indexaux[2] << " --> ";
 
+										ImageType::IndexType indexaux;
+										
+										// DEALING WITH BORDERS: REFLECT STRATEGY
+										if (iii < 0) {
+											indexaux[0] = abs(iii) - 1;
+										}
+										else if (iii > (size[0] - 1)) {
+											indexaux[0] = size[0] - (iii - (size[0] - 1));
+										}
+										else {
+											indexaux[0] = iii;
+										}
+
+										if (jjj < 0) {
+											indexaux[1] = abs(jjj) - 1;
+										}
+										else if (jjj > (size[1] - 1)) {
+											indexaux[1] = size[1] - (jjj - (size[1] - 1));
+										}
+										else {
+											indexaux[1] = jjj;
+										}
+
+										if (kkk < 0) {
+											indexaux[2] = abs(kkk) - 1;
+										}
+										else if (kkk > (size[2] - 1)) {
+											indexaux[2] = size[2] - (kkk - (size[2] - 1));
+										}
+										else {
+											indexaux[2] = kkk;
+										}
+
+										//cout << indexaux[0] << ", " << indexaux[1] << ", " << indexaux[2] << endl;
+										
 										counter++; // COUNTS THE NUMBER OF PIXELS IN KERNEL (e.g. 3x3 kernel = 9 pixels)
 										kernelSum = kernelSum + (float)image->GetPixel(indexaux);
-										neighbKernel[(indexaux[0] - indexNeighb[0] + kernelStep) * kernelSize * kernelSize
-											+ (indexaux[1] - indexNeighb[1] + kernelStep) * kernelSize +
-											(indexaux[2] - indexNeighb[2] + kernelStep)] = (float)image->GetPixel(indexaux);
+										neighbKernel[(iii - ii + kernelStep) * kernelSize * kernelSize
+											+ (jjj - jj + kernelStep) * kernelSize +
+											(kkk - kk + kernelStep)] = (float)image->GetPixel(indexaux);
 
 									}
 								}
@@ -243,9 +372,9 @@ int main(int argc, char **argv) {
 							kernelMean = kernelSum / counter;
 
 							// SAVING THE CURRENT NEIGHBOURHOOD KERNEL'S MEAN (OF THE CORRESPONDING CENTER PIXEL)
-							neighbVals[(indexNeighb[0] - index[0] + neighbRadius - kernelStep) * neighbCenterSize * neighbCenterSize +
-								(indexNeighb[1] - index[1] + neighbRadius - kernelStep) * neighbCenterSize + 
-								(indexNeighb[2] - index[2] + neighbRadius - kernelStep)] = kernelMean;
+							neighbVals[(ii - i + neighbRadius - kernelStep) * neighbCenterSize * neighbCenterSize +
+								(jj - j + neighbRadius - kernelStep) * neighbCenterSize + 
+								(kk - k + neighbRadius - kernelStep)] = kernelMean;
 
 							delete[] neighbKernel;
 						}
@@ -287,10 +416,11 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	
 	using WriterType = itk::ImageFileWriter<ImageType>;
 	auto writer = WriterType::New();
 
-	cout << "Output file: " << outputFilename.c_str() << endl;
+	std::cout << "Output file: " << outputFilename.c_str() << endl;
 	writer->SetFileName(outputFilename.c_str());
 	writer->SetInput(image);
 
